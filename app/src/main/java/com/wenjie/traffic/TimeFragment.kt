@@ -3,14 +3,11 @@ package com.wenjie.traffic
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AppOpsManager
-import android.app.usage.NetworkStats
-import android.app.usage.NetworkStatsManager
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -23,15 +20,11 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 /**
  * Created by wenjie on 2024/12/11.
  */
-class DataListFragment : Fragment() {
+class TimeFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
@@ -39,9 +32,7 @@ class DataListFragment : Fragment() {
 
     private var isLoaded = false
 
-    private var type: Int = ConnectivityManager.TYPE_MOBILE
-
-    private val adapter by lazy { ApplicationAdapter(1) }
+    private val adapter by lazy { ApplicationAdapter(2) }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -56,9 +47,6 @@ class DataListFragment : Fragment() {
         tvMax = view.findViewById(R.id.tv_max)
         recyclerView.adapter = adapter
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
-
-        type = arguments?.getInt("type") ?: ConnectivityManager.TYPE_MOBILE
-
         getAppUseDataList()
         swipeRefreshLayout.setOnRefreshListener {
             getAppUseDataList()
@@ -80,17 +68,17 @@ class DataListFragment : Fragment() {
                 val list = withContext(Dispatchers.IO) {
                     var sum: Long = 0.toLong()
                     val list = getInstalledApps(requireContext().packageManager).asSequence().map {
-                        getNetworkUsage(it)
+                        getUsage(it)
                     }.filter {
-                        sum += it.use
-                        it.use > 0
+                        sum += it.time
+                        it.time > 0
                     }.sortedByDescending {
-                        it.use
+                        it.time
                     }.toMutableList()
                     adapter.max = sum
                     list
                 }
-                tvMax.text = "今日总消耗：${adapter.formatSizeFromKB(adapter.max)}"
+                tvMax.text = "今日总使用：${adapter.formatTime(adapter.max)}"
                 swipeRefreshLayout.isRefreshing = false
                 adapter.data = list.toMutableList()
                 isLoaded = true
@@ -98,34 +86,16 @@ class DataListFragment : Fragment() {
         }
     }
 
-    private fun getNetworkUsage(appInfoItem: AppInfoItem): AppInfoItem {
-        val networkStatsManager =
-            requireContext().getSystemService(Context.NETWORK_STATS_SERVICE) as NetworkStatsManager
-        val usageStats = mutableListOf<Pair<String, Long>>()
-        // 移动网络类型
-        val networkType = type
-        try {
-            val bucket = networkStatsManager.queryDetailsForUid(
-                networkType, null, getTodayMidnightTimestamp(), System.currentTimeMillis(), appInfoItem.uid
-            )
-            while (bucket.hasNextBucket()) {
-                val usageBucket = NetworkStats.Bucket()
-                bucket.getNextBucket(usageBucket)
-                val packageName = requireContext().packageManager.getNameForUid(usageBucket.uid)
-
-                val dataUsage = usageBucket.rxBytes + usageBucket.txBytes
-                Log.e(
-                    "asd", "${convertMillisecondsToDate(usageBucket.startTimeStamp)}到${
-                        convertMillisecondsToDate(usageBucket.endTimeStamp)
-                    } packageName= $packageName dataUsage=$dataUsage"
-                )
-                usageStats.add(Pair(packageName ?: "Unknown", dataUsage))
-            }
-            appInfoItem.use = usageStats.sumOf {
-                it.second / 1024
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+    private fun getUsage(appInfoItem: AppInfoItem): AppInfoItem {
+        val usageStatsManager =
+            requireContext().getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val stats = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_BEST,
+            1733875200000,
+            System.currentTimeMillis()
+        )
+        appInfoItem.time = stats.sumOf {
+            it.totalTimeInForeground
         }
         return appInfoItem
     }
@@ -145,13 +115,6 @@ class DataListFragment : Fragment() {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
-    fun convertMillisecondsToDate(milliseconds: Long): String {
-        // 创建时间格式
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-        // 将毫秒数转换为日期
-        val date = Date(milliseconds)
-        return dateFormat.format(date)
-    }
 
     private fun getInstalledApps(packageManager: PackageManager): List<AppInfoItem> {
         val installedApps = mutableListOf<AppInfoItem>()
@@ -178,22 +141,11 @@ class DataListFragment : Fragment() {
         return installedApps
     }
 
-    private fun getTodayMidnightTimestamp(): Long {
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        return calendar.timeInMillis
-    }
-
     companion object {
 
-        fun newInstance(type: Int): DataListFragment {
-            return DataListFragment().also {
+        fun newInstance(): TimeFragment {
+            return TimeFragment().also {
                 val bundle = Bundle()
-                bundle.putInt("type", type)
                 it.arguments = bundle
             }
         }

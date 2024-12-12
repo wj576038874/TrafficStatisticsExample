@@ -10,4 +10,5 @@ data class AppInfoItem(
     val icon: Drawable,
     val uid: Int,
     var use: Long = 0,
+    var time: Long = 0
 )

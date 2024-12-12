@@ -8,7 +8,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -20,6 +22,19 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var viewPager2: ViewPager2
     private lateinit var tab: TabLayout
+
+    private val launcher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (checkOpNoThrow()) {
+                Toast.makeText(this, "true", Toast.LENGTH_SHORT).show()
+            } else {
+                launcher()
+            }
+        }
+
+    private fun launcher() {
+        launcher.launch(getPackagePermissionIntent(this))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,17 +51,19 @@ class MainActivity : AppCompatActivity() {
         viewPager2.adapter = MyPagerAdapter(
             listOf(
                 DataListFragment.newInstance(ConnectivityManager.TYPE_WIFI),
-                DataListFragment.newInstance(ConnectivityManager.TYPE_MOBILE)
+                DataListFragment.newInstance(ConnectivityManager.TYPE_MOBILE),
+                TimeFragment.newInstance()
             ), this
         )
 
         TabLayoutMediator(tab, viewPager2) { tab, position ->
             if (position == 0) tab.text = "Wifi"
             if (position == 1) tab.text = "Mobile"
+            if (position == 2) tab.text = "Time"
         }.attach()
 
         if (!checkOpNoThrow()) {
-            startActivityForResult(getPackagePermissionIntent(this), 1)
+            launcher.launch(getPackagePermissionIntent(this))
         }
     }
 

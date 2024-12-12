@@ -9,11 +9,12 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
+import java.util.Locale
 
 /**
  * Created by wenjie on 2024/12/11.
  */
-class ApplicationAdapter : RecyclerView.Adapter<ApplicationAdapter.MyViewHolder>() {
+class ApplicationAdapter(private val type: Int) : RecyclerView.Adapter<ApplicationAdapter.MyViewHolder>() {
 
     var max: Long = 0
 
@@ -47,8 +48,7 @@ class ApplicationAdapter : RecyclerView.Adapter<ApplicationAdapter.MyViewHolder>
         holder.name.text = item.name
         holder.progress.max = max.toInt()
         holder.progress.progress = item.use.toInt()
-        holder.use.text = formatSizeFromKB(item.use)
-
+        holder.use.text = if (type == 1) formatSizeFromKB(item.use) else formatTime(item.time)
     }
 
     private fun formatSizeFromByte(bytes: Long): String {
@@ -66,5 +66,12 @@ class ApplicationAdapter : RecyclerView.Adapter<ApplicationAdapter.MyViewHolder>
             kb in 1024..<1024 * 1024 -> "%.2f MB".format(kb / 1024.0)  // 大于1KB，小于1MB，显示MB，保留两位小数
             else -> "%.2f GB".format(kb / (1024.0 * 1024))  // 大于1MB，显示GB，保留两位小数
         }
+    }
+
+    fun formatTime(milliseconds: Long): String {
+        val hours = milliseconds / 3600000
+        val minutes = (milliseconds % 3600000) / 60000
+        val seconds = (milliseconds % 60000) / 1000
+        return String.format(Locale.getDefault(),"%02d小时%02d分钟", hours, minutes)
     }
 }
